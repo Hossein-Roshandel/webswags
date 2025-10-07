@@ -1,8 +1,6 @@
 module github.com/Hossein-Roshandel/webswags
 
-go 1.24.0
-
-toolchain go1.24.7
+go 1.25.0
 
 require (
 	github.com/getkin/kin-openapi v0.128.0
