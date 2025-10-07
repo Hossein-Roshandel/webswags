@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/Hossein-Roshandel/webswags/discovery"
 )
+
+//go:embed templates/*
+var templatesFS embed.FS
 
 const (
 	port             = "8085"
@@ -83,9 +87,6 @@ func main() {
 	// Setup routes.
 	r := mux.NewRouter()
 
-	// Static files for Swagger UI.
-	r.PathPrefix("/swagger-ui/").Handler(http.StripPrefix("/swagger-ui/", http.FileServer(http.Dir("./swagger-ui/"))))
-
 	// API routes.
 	r.HandleFunc("/api/specs", handleSpecs(specs)).Methods("GET")
 	r.HandleFunc("/api/specs/{service}/swagger.yaml", handleSwaggerFile(specs)).Methods("GET")
@@ -118,7 +119,7 @@ func handleIndex(specs []discovery.SwaggerSpec) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 
-		tmpl, err := template.ParseFiles("templates/index.html")
+		tmpl, err := template.ParseFS(templatesFS, "templates/index.html")
 		if err != nil {
 			http.Error(w, "Error loading template", http.StatusInternalServerError)
 			return
@@ -156,7 +157,7 @@ func handleServiceSwagger(specs []discovery.SwaggerSpec) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "text/html")
 
-		tmpl, err := template.ParseFiles("templates/service.html")
+		tmpl, err := template.ParseFS(templatesFS, "templates/service.html")
 		if err != nil {
 			http.Error(w, "Error loading template", http.StatusInternalServerError)
 			return
