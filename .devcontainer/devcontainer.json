@@ -1,0 +1,44 @@
+{
+  "name": "WebSwags Development",
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile.dev"
+  },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-json",
+        "davidanson.vscode-markdownlint",
+        "yzhang.markdown-all-in-one",
+        "ms-vscode-remote.remote-containers",
+        "ms-vscode-remote.remote-ssh",
+        "ms-vscode.vscode-html"
+      ]
+    }
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "GOPROXY": "proxy.golang.org,direct",
+    "GOROOT": "/usr/local/go",
+    "GOPATH": "/home/vscode/go"
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "/workspace/setup-dev.sh",
+  "updateRemoteUserUID": true,
+  "forwardPorts": [
+    8085
+  ],
+  "portsAttributes": {
+    "8085": {
+      "label": "Swagger Server",
+      "onAutoForward": "notify"
+    }
+  }
+}

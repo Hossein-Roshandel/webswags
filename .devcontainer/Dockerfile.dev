@@ -1,0 +1,45 @@
+# Multi-stage Dockerfile for development environment
+FROM mcr.microsoft.com/devcontainers/go:1.25 AS base
+
+RUN apt-get update && \
+    apt-get install -y \
+        curl wget bash sudo mockgen nano ca-certificates make git net-tools && \
+        rm -rf /var/lib/apt/lists/* && \
+        usermod -aG sudo vscode && \
+        echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Stage 1: Download dependencies
+FROM base as deps
+
+WORKDIR /workspace
+
+# Set GOPATH to match devcontainers.json
+ENV GOPATH=/home/vscode/go
+
+COPY Makefile ./
+# Install additional development tools
+RUN make dev-setup
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Stage 2: Development environment
+FROM base AS final
+
+WORKDIR /workspace
+
+# Set GOPATH to match devcontainers.json
+ENV GOPATH=/home/vscode/go
+ENV GO111MODULE=on
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV PATH=$GOPATH/bin:/usr/local/go/bin:/home/vscode/.local/bin:$PATH
+
+# Copy downloaded modules and installed tools from deps stage
+COPY --from=deps /home/vscode/go /home/vscode/go
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+RUN uv tool install pre-commit --with pre-commit-uv
+
+# Default command for dev container
+CMD ["bash"]

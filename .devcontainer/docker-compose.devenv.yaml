@@ -1,0 +1,17 @@
+version: '3'
+services:
+  dev-env:
+    image: webswags-devenv
+    container_name: webswags-devenv
+    ports:
+      - 8085:8085
+    environment:
+      - GOPROXY=proxy.golang.org,direct
+      - GOROOT=/usr/local/go
+      - GOPATH=/home/vscode/go
+    volumes:
+      - ~/.ssh:/home/vscode/.ssh
+      - ~/.gitconfig:/home/vscode/.gitconfig
+      - ../:/workspace
+    stdin_open: true
+    tty: true

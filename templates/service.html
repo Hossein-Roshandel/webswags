@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ServiceTitle}} API - WebSwags</title>
+    <link rel="stylesheet" type="text/css"
+        href="https://unpkg.com/swagger-ui-dist@{{.SwaggerUIVersion}}/swagger-ui.css" />
+    <style>
+        body {
+            margin: 0;
+        }
+
+        .topbar {
+            display: none !important;
+        }
+
+        .swagger-ui .info .title {
+            color: #667eea;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+            background: #667eea;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: #5a67d8;
+            color: white;
+            text-decoration: none;
+        }
+
+        .format-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: #27ae60;
+            /* default green for YAML */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="/" class="back-button">← Back to Services</a>
+    <div class="format-badge" data-format="{{.Format}}">{{.Format}}</div>
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@{{.SwaggerUIVersion}}/swagger-ui-bundle.js"></script>
+    <script>
+        // Set format badge color
+        const formatBadge = document.querySelector('.format-badge');
+        const format = formatBadge.dataset.format;
+        if (format === 'json') {
+            formatBadge.style.background = '#f39c12'; // Orange for JSON
+        } else {
+            formatBadge.style.background = '#27ae60'; // Green for YAML
+        }
+
+        // Initialize Swagger UI
+        window.onload = function () {
+            const ui = SwaggerUIBundle({
+                url: '{{.SpecURL}}',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.presets.standalone
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "BaseLayout"
+            });
+        };
+    </script>
+</body>
+
+</html>
