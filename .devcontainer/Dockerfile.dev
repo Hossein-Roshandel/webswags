@@ -26,7 +26,6 @@ RUN go mod download
 # Stage 2: Development environment
 FROM base AS final
 
-WORKDIR /workspace
 
 # Set GOPATH to match devcontainers.json
 ENV GOPATH=/home/vscode/go
@@ -39,7 +38,10 @@ ENV PATH=$GOPATH/bin:/usr/local/go/bin:/home/vscode/.local/bin:$PATH
 COPY --from=deps /home/vscode/go /home/vscode/go
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+USER vscode:vscode
 RUN uv tool install pre-commit --with pre-commit-uv
+
+WORKDIR /workspace
 
 # Default command for dev container
 CMD ["bash"]
