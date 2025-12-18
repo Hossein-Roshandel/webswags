@@ -3,9 +3,11 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -32,6 +34,10 @@ const (
 	serverReadTimeout  = 15
 	serverWriteTimeout = 15
 	serverIdleTimeout  = 60
+
+	// Proxy configuration.
+	proxyTimeout    = 30        // seconds
+	proxyBufferSize = 32 * 1024 // 32KB buffer for streaming
 
 	// UI colors.
 	colorJSON = "#f39c12" // Orange for JSON
@@ -91,6 +97,9 @@ func main() {
 	r.HandleFunc("/api/specs", handleSpecs(specs)).Methods("GET")
 	r.HandleFunc("/api/specs/{service}/swagger.yaml", handleSwaggerFile(specs)).Methods("GET")
 	r.HandleFunc("/api/specs/{service}/swagger.json", handleSwaggerFile(specs)).Methods("GET")
+
+	// CORS proxy route - allows Swagger UI to make requests through our server
+	r.HandleFunc("/proxy", handleProxy()).Methods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 
 	// Main routes
 	r.HandleFunc("/", handleIndex(specs)).Methods("GET")
@@ -239,5 +248,127 @@ func handleSwaggerFile(specs []discovery.SwaggerSpec) http.HandlerFunc {
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		http.ServeFile(w, r, specPath)
+	}
+}
+
+// setCORSHeaders sets CORS headers on the response writer.
+func setCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+}
+
+// handlePreflightRequest handles CORS preflight OPTIONS requests.
+func handlePreflightRequest(w http.ResponseWriter) {
+	setCORSHeaders(w)
+	w.Header().Set("Access-Control-Max-Age", "3600")
+	w.WriteHeader(http.StatusOK)
+}
+
+// copyRequestHeaders copies headers from the original request to the proxy request, excluding Host.
+func copyRequestHeaders(proxyReq *http.Request, originalReq *http.Request) {
+	for key, values := range originalReq.Header {
+		if key != "Host" {
+			for _, value := range values {
+				proxyReq.Header.Add(key, value)
+			}
+		}
+	}
+}
+
+// copyQueryParameters copies query parameters from the original request to the proxy request,
+// excluding the 'url' parameter.
+func copyQueryParameters(proxyReq *http.Request, originalReq *http.Request) {
+	query := originalReq.URL.Query()
+	query.Del("url") // Remove the proxy URL parameter
+	proxyReq.URL.RawQuery = query.Encode()
+}
+
+// copyResponseHeaders copies headers from the proxy response to the response writer.
+func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+}
+
+// streamResponseBody streams the response body from the proxy response to the response writer.
+func streamResponseBody(w http.ResponseWriter, resp *http.Response) error {
+	buf := make([]byte, proxyBufferSize)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return fmt.Errorf("failed to write response: %w", writeErr)
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			return fmt.Errorf("failed to read response: %w", readErr)
+		}
+	}
+	return nil
+}
+
+// handleProxy acts as a CORS proxy for API requests made from Swagger UI.
+// It forwards requests to the actual API servers, bypassing CORS restrictions.
+// Usage: /proxy?url={target-url}
+// Example: /proxy?url=https://testcertsapi.bpglobal.com/VEDAUTH/Authorize/OAuth
+func handleProxy() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract the target URL from query parameter
+		targetURL := r.URL.Query().Get("url")
+		if targetURL == "" {
+			http.Error(w, "Target URL is required. Usage: /proxy?url={target-url}", http.StatusBadRequest)
+			return
+		}
+
+		// Handle preflight OPTIONS request
+		if r.Method == http.MethodOptions {
+			handlePreflightRequest(w)
+			return
+		}
+
+		// Create the proxied request with context
+		proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+		if err != nil {
+			slog.Error("Failed to create proxy request", "error", err, "target_url", targetURL)
+			http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
+			return
+		}
+
+		// Copy headers and query parameters
+		copyRequestHeaders(proxyReq, r)
+		copyQueryParameters(proxyReq, r)
+
+		// Make the request
+		client := &http.Client{
+			Timeout: proxyTimeout * time.Second,
+		}
+		resp, err := client.Do(proxyReq)
+		if err != nil {
+			slog.Error("Proxy request failed", "error", err, "target_url", targetURL)
+			http.Error(w, fmt.Sprintf("Proxy request failed: %v", err), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		// Set CORS headers and copy response headers
+		setCORSHeaders(w)
+		copyResponseHeaders(w, resp)
+
+		// Set status code
+		w.WriteHeader(resp.StatusCode)
+
+		// Stream the response body
+		if streamErr := streamResponseBody(w, resp); streamErr != nil {
+			slog.Error("Failed to write proxy response", "error", streamErr)
+			return
+		}
+
+		slog.Info("Proxy request completed", "method", r.Method, "target_url", targetURL, "status", resp.StatusCode)
 	}
 }

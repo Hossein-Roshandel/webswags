@@ -55,12 +55,35 @@
             font-weight: bold;
             text-transform: uppercase;
         }
+
+        .cors-info {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: #3498db;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 11px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            max-width: 250px;
+        }
+
+        .cors-info strong {
+            display: block;
+            margin-bottom: 3px;
+        }
     </style>
 </head>
 
 <body>
     <a href="/" class="back-button">← Back to Services</a>
     <div class="format-badge" data-format="{{.Format}}">{{.Format}}</div>
+    <div class="cors-info">
+        <strong>🔓 CORS Proxy Enabled</strong>
+        API requests are automatically proxied to avoid CORS issues.
+    </div>
     <div id="swagger-ui"></div>
 
     <script src="https://unpkg.com/swagger-ui-dist@{{.SwaggerUIVersion}}/swagger-ui-bundle.js"></script>
@@ -87,7 +110,19 @@
                 plugins: [
                     SwaggerUIBundle.plugins.DownloadUrl
                 ],
-                layout: "BaseLayout"
+                layout: "BaseLayout",
+                requestInterceptor: function (req) {
+                    // Proxy requests through our server to avoid CORS issues
+                    // Only proxy external requests (not our own API spec requests)
+                    if (!req.url.startsWith(window.location.origin) &&
+                        !req.url.startsWith('/') &&
+                        !req.url.includes('/proxy')) {
+                        console.log('Proxying request to:', req.url);
+                        // Encode the target URL as a query parameter
+                        req.url = '/proxy?url=' + encodeURIComponent(req.url);
+                    }
+                    return req;
+                }
             });
         };
     </script>

@@ -10,6 +10,7 @@ WebSwags is a lightweight Go web server that provides a modern web interface for
 - 🏷️ **Format Indicators**: Visual badges showing file format (YAML/JSON) for each service
 - 📋 **Service Listing**: Overview page showing all available API services with format information
 - 🚀 **Quick Access**: Direct links to each service's documentation
+- 🔓 **CORS Proxy**: Built-in proxy server to bypass CORS restrictions when testing API endpoints
 - 🎯 **Development Focus**: Designed specifically for local development workflow
 
 ## Installation
@@ -101,6 +102,35 @@ The server automatically scans for OpenAPI specifications:
 - `GET /api/specs` - JSON API listing all discovered specifications (includes format field)
 - `GET /api/specs/{service}/swagger.yaml` - Raw YAML file for service
 - `GET /api/specs/{service}/swagger.json` - Raw JSON file for service
+- `GET|POST|PUT|PATCH|DELETE /proxy?url={encoded-url}` - CORS proxy endpoint for API requests
+
+### CORS Proxy
+
+The built-in CORS proxy allows you to test API endpoints directly from Swagger UI without encountering CORS (Cross-Origin Resource Sharing) restrictions. This is especially useful when:
+
+- Testing APIs hosted on different domains
+- Working with APIs that don't have CORS headers configured
+- Making requests to production/test servers from your local environment
+
+**How it works:**
+
+1. When you make a request from Swagger UI to an external API, the request is automatically intercepted
+2. The request is proxied through the WebSwags server at `/proxy?url={target-url}`
+3. The server makes the request on your behalf (server-to-server, no CORS restrictions)
+4. The response is returned to your browser with appropriate CORS headers
+
+**Usage:**
+
+The proxy is transparent - just use the "Try it out" feature in Swagger UI normally. The application automatically routes external requests through the proxy.
+
+You can also use the proxy directly:
+
+```bash
+# Direct proxy usage
+curl "http://localhost:8085/proxy?url=https%3A%2F%2Fapi.example.com%2Fendpoint"
+```
+
+**Note:** The proxy adds `Access-Control-Allow-Origin: *` headers to all responses, allowing the Swagger UI to function properly.
 
 ## Development
 
