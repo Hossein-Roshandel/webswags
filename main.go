@@ -118,6 +118,7 @@ func main() {
 func handleIndex(specs []discovery.SwaggerSpec) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 
 		tmpl, err := template.ParseFS(templatesFS, "templates/index.html")
 		if err != nil {
@@ -156,6 +157,7 @@ func handleServiceSwagger(specs []discovery.SwaggerSpec) http.HandlerFunc {
 		specURL := fmt.Sprintf("/api/specs/%s/swagger.%s", service, specFormat)
 
 		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 
 		tmpl, err := template.ParseFS(templatesFS, "templates/service.html")
 		if err != nil {
@@ -189,6 +191,7 @@ func getFormatColor(format string) string {
 func handleSpecs(specs []discovery.SwaggerSpec) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if err := json.NewEncoder(w).Encode(specs); err != nil {
 			http.Error(w, "Failed to encode specs to JSON", http.StatusInternalServerError)
 			return
