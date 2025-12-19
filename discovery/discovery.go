@@ -107,13 +107,18 @@ type SwaggerSpec struct {
 	Raw []byte `json:"-" yaml:"-"`
 }
 
-// DiscoverSwaggerSpecs scans within the given project root
-// and returns a list of SwaggerSpec objects for all discovered Swagger files.
-// It looks for files with .yaml or .json extensions inside any "spec" subdirectory.
+// DiscoverSwaggerSpecs scans within the given project root recursively
+// and returns a list of SwaggerSpec objects for all discovered OpenAPI/Swagger files.
+// It looks for files with .yaml, .yml, or .json extensions anywhere under the root path.
 //
-// Example path structure:
+// The function attempts to parse each YAML/JSON file as an OpenAPI/Swagger spec.
+// Files that cannot be parsed or are not valid OpenAPI specs are skipped with a warning.
 //
-//	connector/{service}/spec/{swagger_file}.yaml
+// Example path structures supported:
+//   - connector/{service}/spec/{swagger_file}.yaml
+//   - apis/{service}/{swagger_file}.json
+//   - docs/openapi.yaml
+//   - any/nested/path/to/spec.yml
 //
 // Parameters:
 //   - projectRoot: the root directory of the project.
@@ -127,25 +132,35 @@ func DiscoverSwaggerSpecs(projectRoot string) ([]SwaggerSpec, error) {
 	err := filepath.Walk(projectRoot, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			// Skip this file or directory if there's an error accessing it
-			return nil //nolint:nilerr // Continue walking despite access errors
+			slog.Debug("Skipping path due to access error", "path", path, "error", walkErr)
+			return nil // Continue walking despite access errors
 		}
 
-		// Match files in a "spec" directory with .yaml or .json extensions
-		if info.Mode().IsRegular() &&
-			strings.Contains(path, string(filepath.Separator)+"spec"+string(filepath.Separator)) &&
-			(strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".json")) {
-			spec, err := parseSwaggerSpec(path)
-			if err != nil {
-				slog.Warn("Failed to parse swagger spec", "path", path, "error", err)
-				return nil // Continue processing other files
-			}
-			specs = append(specs, spec)
+		// Skip directories
+		if info.IsDir() {
+			return nil
 		}
 
+		// Check if file has a valid OpenAPI/Swagger extension
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".yaml" && ext != ".yml" && ext != ".json" {
+			return nil
+		}
+
+		// Try to parse as an OpenAPI/Swagger spec
+		spec, err := parseSwaggerSpec(path)
+		if err != nil {
+			// Only log at debug level since many YAML/JSON files won't be OpenAPI specs
+			slog.Debug("Skipping file (not a valid OpenAPI spec)", "path", path, "error", err)
+			return nil // Continue processing other files
+		}
+
+		specs = append(specs, spec)
+		slog.Info("Discovered OpenAPI spec", "service", spec.Service, "version", spec.Version, "path", path)
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error walking connector directory: %w", err)
+		return nil, fmt.Errorf("error walking directory: %w", err)
 	}
 
 	// Sort specs alphabetically by service name
@@ -169,7 +184,6 @@ func parseSwaggerSpec(path string) (SwaggerSpec, error) {
 		Path:     path,
 		FileName: filepath.Base(path),
 		Format:   detectFormatFromExtOrContent(path, data),
-		Service:  deriveName("", path),
 		Raw:      data,
 	}
 
@@ -195,7 +209,8 @@ func parseSwaggerSpec(path string) (SwaggerSpec, error) {
 		spec.Title = spec.OpenAPI3Doc.Info.Title
 		spec.Version = spec.OpenAPI3Doc.Info.Version
 		spec.Description = spec.OpenAPI3Doc.Info.Description
-		spec.Name = deriveName(spec.Title, spec.FileName)
+		spec.Name = deriveName(spec.Title, path)
+		spec.Service = deriveName(spec.Title, path)
 
 		return spec, nil
 	}
@@ -227,7 +242,8 @@ func parseSwaggerSpec(path string) (SwaggerSpec, error) {
 		spec.Title = spec.Swagger2Doc.Info.Title
 		spec.Version = spec.Swagger2Doc.Info.Version
 		spec.Description = spec.Swagger2Doc.Info.Description
-		spec.Name = deriveName(spec.Title, spec.FileName)
+		spec.Name = deriveName(spec.Title, path)
+		spec.Service = deriveName(spec.Title, path)
 
 		return spec, nil
 	}
@@ -347,52 +363,99 @@ func toInfoFromOAS2(in *oas2.Info) Info {
 	return out
 }
 
-// deriveName returns a title-cased service name.
-// Priority:
+// deriveName returns a title-cased service name with intelligent fallback logic.
+//
+// Priority (first non-empty value wins):
 //  1. If title (after trimming) is non-empty, it is used.
-//  2. Otherwise, the name is derived from path by taking the path segment
-//     immediately preceding the first "spec" directory (using the OS path separator).
-//  3. If no such "spec" segment exists (or it has no preceding segment),
-//     the filename (without extension) is used.
+//  2. Extract from path using one of these strategies (in order):
+//     a. Segment immediately before "spec" directory
+//     b. Segment immediately before "api", "apis", "swagger", or "openapi" directory
+//     c. Parent directory name (if not ".", root, or generic names)
+//     d. Filename without extension
 //
 // The final value is title-cased using English rules.
 //
 // Examples:
 //
-//	deriveName("  loyalty  ", "connector/loyalty/spec/loyalty.yaml") => "Loyalty"  // title wins
-//	deriveName("",            "connector/loyalty/spec/loyalty.yaml") => "Loyalty"  // segment before "spec"
-//	deriveName("",            "foo/bar/spec/x.yaml")                  => "Bar"     // segment before "spec"
-//	deriveName("",            "foo/bar/baz.yaml")                     => "Baz"     // fallback to filename w/o ext
+//	deriveName("My API", "connector/loyalty/spec/loyalty.yaml")        => "My API"         // title wins
+//	deriveName("",        "connector/loyalty/spec/loyalty.yaml")       => "Loyalty"        // segment before "spec"
+//	deriveName("",        "apis/user-service/openapi.yaml")            => "User Service"   // segment before "apis"
+//	deriveName("",        "docs/petstore/swagger.json")                => "Petstore"       // parent dir
+//	deriveName("",        "/tmp/my-api.yaml")                          => "My Api"         // filename fallback
+//	deriveName("",        "openapi.yaml")                              => "Openapi"        // filename only
 //
 // Notes:
-//   - Only the segment before "spec" is used when present; the actual filename is ignored in that case.
-//   - If "spec" is the first path segment, the filename (without extension) is used instead of returning empty.
-//   - Title-casing uses cases.Title(language.English, cases.Compact), which may alter
-//     acronyms/branding (e.g., "HEllo" -> "Hello").
-//   - Path splitting respects the OS-specific separator (filepath.Separator).
+//   - Hyphens and underscores in names are replaced with spaces before title-casing.
+//   - Generic directory names like "docs", "specifications", etc. are skipped.
+//   - Title-casing uses cases.Title(language.English, cases.Compact).
 func deriveName(title, path string) string {
-	var serviceName = strings.TrimSpace(title)
+	serviceName := strings.TrimSpace(title)
 	if serviceName != "" {
-		return cases.Title(language.English, cases.Compact).String(serviceName)
+		return formatServiceName(serviceName)
 	}
 
-	// Normalize and prepare filename fallback (without extension).
+	// Normalize path and prepare fallbacks
 	cleanPath := filepath.Clean(path)
+	pathParts := strings.Split(cleanPath, string(filepath.Separator))
+
+	// Filename without extension (last resort fallback)
 	base := filepath.Base(cleanPath)
-	if base == "." || base == string(filepath.Separator) {
-		base = ""
-	}
 	filenameNoExt := strings.TrimSuffix(base, filepath.Ext(base))
 
-	// Try to get the segment immediately preceding "spec".
-	pathParts := strings.Split(cleanPath, string(filepath.Separator))
-	serviceName = filenameNoExt // default fallback
+	// Generic directory names to skip when looking for service name
+	genericDirs := map[string]bool{
+		"docs":           true,
+		"doc":            true,
+		"documentation":  true,
+		"specifications": true,
+		"specs":          true,
+		".":              true,
+		"/":              true,
+		"":               true,
+	}
 
-	for i := range len(pathParts) - 1 {
-		if pathParts[i] == "spec" && pathParts[i-1] != "" {
-			serviceName = pathParts[i-1]
-			break
+	// Strategy 1: Look for segment before common API directory names
+	apiDirNames := []string{"spec", "specs", "api", "apis", "swagger", "openapi", "oas"}
+	for i := len(pathParts) - 1; i > 0; i-- {
+		currentPart := strings.ToLower(pathParts[i])
+		for _, apiDir := range apiDirNames {
+			if currentPart == apiDir && i > 0 {
+				candidate := pathParts[i-1]
+				if !genericDirs[strings.ToLower(candidate)] {
+					return formatServiceName(candidate)
+				}
+			}
 		}
 	}
-	return cases.Title(language.English, cases.Compact).String(serviceName)
+
+	// Strategy 2: Use parent directory if it's not generic
+	const minPathDepth = 2
+	if len(pathParts) >= minPathDepth {
+		parentDir := pathParts[len(pathParts)-2]
+		if !genericDirs[strings.ToLower(parentDir)] {
+			return formatServiceName(parentDir)
+		}
+	}
+
+	// Strategy 3: Fallback to filename without extension
+	return formatServiceName(filenameNoExt)
+}
+
+// formatServiceName formats a raw service name for display.
+// It replaces hyphens and underscores with spaces, then applies title casing.
+//
+// Examples:
+//   - "user-service" => "User Service"
+//   - "my_api_v2" => "My Api V2"
+//   - "UserAPI" => "Userapi"  (limitation of title casing)
+func formatServiceName(name string) string {
+	// Replace common separators with spaces
+	name = strings.ReplaceAll(name, "-", " ")
+	name = strings.ReplaceAll(name, "_", " ")
+
+	// Clean up multiple spaces
+	name = strings.Join(strings.Fields(name), " ")
+
+	// Apply title casing
+	return cases.Title(language.English, cases.Compact).String(name)
 }
