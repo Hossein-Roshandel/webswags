@@ -7,124 +7,49 @@
     <title>{{.ServiceTitle}} API - WebSwags</title>
     <link rel="stylesheet" type="text/css"
         href="https://unpkg.com/swagger-ui-dist@{{.SwaggerUIVersion}}/swagger-ui.css" />
+    <style id="swagger-dark-styles"></style>
     <style>
-        body {
-            margin: 0;
-        }
-
-        .topbar {
-            display: none !important;
-        }
-
-        .swagger-ui .info .title {
-            color: #667eea;
-        }
-
-        .back-button {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 9999;
-            background: #667eea;
-            color: white;
-            padding: 10px 15px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 14px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transition: background-color 0.2s ease;
-        }
-
-        .back-button:hover {
-            background: #5a67d8;
-            color: white;
-            text-decoration: none;
-        }
-
-        .format-badge {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            background: #27ae60;
-            /* default green for YAML */
-            color: white;
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        .cors-info {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 9999;
-            background: #3498db;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 5px;
-            font-size: 11px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            max-width: 250px;
-        }
-
-        .cors-info strong {
-            display: block;
-            margin-bottom: 3px;
-        }
+        {{template "theme.css"}}
+        {{template "service-styles.css"}}
     </style>
 </head>
 
 <body>
+    <button class="theme-toggle" id="themeToggle">💻 System</button>
     <a href="/" class="back-button">← Back to Services</a>
     <div class="format-badge" data-format="{{.Format}}">{{.Format}}</div>
-    <div class="cors-info">
+
+    <div class="proxy-toggle">
+        <label>
+            <div class="toggle-switch" id="proxyToggle"></div>
+            <span>Use Proxy: <span class="proxy-status" id="proxyStatus">ON</span></span>
+        </label>
+    </div>
+
+    <button class="viewer-toggle" id="viewerToggle">📖 Switch to Redoc</button>
+
+    <div class="cors-info" id="corsInfo">
         <strong>🔓 CORS Proxy Enabled</strong>
         API requests are automatically proxied to avoid CORS issues.
     </div>
     <div id="swagger-ui"></div>
 
+    <!-- Swagger UI -->
     <script src="https://unpkg.com/swagger-ui-dist@{{.SwaggerUIVersion}}/swagger-ui-bundle.js"></script>
-    <script>
-        // Set format badge color
-        const formatBadge = document.querySelector('.format-badge');
-        const format = formatBadge.dataset.format;
-        if (format === 'json') {
-            formatBadge.style.background = '#f39c12'; // Orange for JSON
-        } else {
-            formatBadge.style.background = '#27ae60'; // Green for YAML
-        }
+    <script src="https://unpkg.com/swagger-ui-dist@{{.SwaggerUIVersion}}/swagger-ui-standalone-preset.js"></script>
 
-        // Initialize Swagger UI
-        window.onload = function () {
-            const ui = SwaggerUIBundle({
-                url: '{{.SpecURL}}',
-                dom_id: '#swagger-ui',
-                deepLinking: true,
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIBundle.presets.standalone
-                ],
-                plugins: [
-                    SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "BaseLayout",
-                requestInterceptor: function (req) {
-                    // Proxy requests through our server to avoid CORS issues
-                    // Only proxy external requests (not our own API spec requests)
-                    if (!req.url.startsWith(window.location.origin) &&
-                        !req.url.startsWith('/') &&
-                        !req.url.includes('/proxy')) {
-                        console.log('Proxying request to:', req.url);
-                        // Encode the target URL as a query parameter
-                        req.url = '/proxy?url=' + encodeURIComponent(req.url);
-                    }
-                    return req;
-                }
-            });
-        };
+    <!-- Redoc -->
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+
+    <script>
+        // Set the spec URL for the external script
+        const swaggerSpecURL = '{{.SpecURL}}';
+    </script>
+    <script>
+        {{template "theme.js"}}
+    </script>
+    <script>
+        {{template "service-script.js"}}
     </script>
 </body>
 

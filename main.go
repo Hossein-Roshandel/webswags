@@ -99,7 +99,9 @@ func main() {
 	r.HandleFunc("/api/specs/{service}/swagger.json", handleSwaggerFile(specs)).Methods("GET")
 
 	// CORS proxy route - allows Swagger UI to make requests through our server
-	r.HandleFunc("/proxy", handleProxy()).Methods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+	r.HandleFunc("/proxy", handleProxy()).Methods(
+		"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "CONNECT", "TRACE",
+	)
 
 	// Main routes
 	r.HandleFunc("/", handleIndex(specs)).Methods("GET")
@@ -129,7 +131,14 @@ func handleIndex(specs []discovery.SwaggerSpec) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		tmpl, err := template.ParseFS(templatesFS, "templates/index.html")
+		tmpl, err := template.ParseFS(
+			templatesFS,
+			"templates/index.html",
+			"templates/index-styles.css",
+			"templates/theme.css",
+			"templates/theme.js",
+			"templates/SwaggerDark.css",
+		)
 		if err != nil {
 			http.Error(w, "Error loading template", http.StatusInternalServerError)
 			return
@@ -142,6 +151,7 @@ func handleIndex(specs []discovery.SwaggerSpec) http.HandlerFunc {
 		}
 
 		if execErr := tmpl.Execute(w, data); execErr != nil {
+			slog.Error("Failed to render index template", "error", execErr)
 			http.Error(w, "Error rendering template", http.StatusInternalServerError)
 		}
 	}
@@ -168,7 +178,15 @@ func handleServiceSwagger(specs []discovery.SwaggerSpec) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		tmpl, err := template.ParseFS(templatesFS, "templates/service.html")
+		tmpl, err := template.ParseFS(
+			templatesFS,
+			"templates/service.html",
+			"templates/service-styles.css",
+			"templates/service-script.js",
+			"templates/theme.css",
+			"templates/theme.js",
+			"templates/SwaggerDark.css",
+		)
 		if err != nil {
 			http.Error(w, "Error loading template", http.StatusInternalServerError)
 			return
@@ -183,6 +201,7 @@ func handleServiceSwagger(specs []discovery.SwaggerSpec) http.HandlerFunc {
 		}
 
 		if execErr := tmpl.Execute(w, data); execErr != nil {
+			slog.Error("Failed to render service template", "service", service, "error", execErr)
 			http.Error(w, "Error rendering template", http.StatusInternalServerError)
 		}
 	}
@@ -254,8 +273,14 @@ func handleSwaggerFile(specs []discovery.SwaggerSpec) http.HandlerFunc {
 // setCORSHeaders sets CORS headers on the response writer.
 func setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+	w.Header().Set(
+		"Access-Control-Allow-Methods",
+		"GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD, CONNECT, TRACE",
+	)
+	w.Header().Set(
+		"Access-Control-Allow-Headers",
+		"Content-Type, Authorization, X-Requested-With, Accept, X-API-Key, X-Custom-Header",
+	)
 }
 
 // handlePreflightRequest handles CORS preflight OPTIONS requests.
