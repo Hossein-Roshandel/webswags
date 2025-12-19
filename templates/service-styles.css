@@ -1,0 +1,181 @@
+body {
+    margin: 0;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.topbar {
+    display: none !important;
+}
+
+.swagger-ui .info .title {
+    color: #667eea;
+}
+
+.back-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 9999;
+    background: #667eea;
+    color: white;
+    padding: 10px 15px;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.2s ease;
+}
+
+.back-button:hover {
+    background: #5a67d8;
+    color: white;
+    text-decoration: none;
+}
+
+.format-badge {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    background: #27ae60;
+    /* default green for YAML */
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.cors-info {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    background: #3498db;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 11px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    max-width: 250px;
+}
+
+.cors-info strong {
+    display: block;
+    margin-bottom: 3px;
+}
+
+.proxy-toggle {
+    position: fixed;
+    top: 70px;
+    left: 20px;
+    z-index: 9999;
+    background: var(--bg-secondary);
+    padding: 12px 15px;
+    border-radius: 5px;
+    box-shadow: var(--shadow-sm);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.proxy-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    margin: 0;
+    user-select: none;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: #ccc;
+    border-radius: 12px;
+    transition: background-color 0.3s;
+    cursor: pointer;
+}
+
+.toggle-switch.active {
+    background: #667eea;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+.toggle-switch.active::after {
+    transform: translateX(20px);
+}
+
+.proxy-status {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.proxy-status.direct {
+    color: #e74c3c;
+}
+
+.viewer-toggle {
+    position: fixed;
+    top: 120px;
+    left: 20px;
+    z-index: 9999;
+    background: #667eea;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 12px;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s ease;
+}
+
+.viewer-toggle:hover {
+    background: #5a67d8;
+}
+
+/* Redoc-specific overrides */
+#redoc-container {
+    height: 100vh;
+}
+
+/* Dark mode for Redoc */
+[data-theme="dark"] #redoc-container {
+    background-color: #1a1a1a;
+}
+
+/* Enhanced search box styling for Swagger UI */
+.swagger-ui .filter-container {
+    padding: 20px 20px 10px;
+}
+
+.swagger-ui .filter-container input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #667eea;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.swagger-ui .filter-container input:focus {
+    outline: none;
+    border-color: #5a67d8;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
